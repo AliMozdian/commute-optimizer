@@ -75,6 +75,11 @@ def main():
     parser.add_argument("--plot-route", action="store_true", help="Display road network and final chosen route")
     parser.add_argument("--plot-metrics", action="store_true", help="Display convergence trajectory curve")
     parser.add_argument("--save-figs", action="store_true", help="Save visualization plots to disk as PNG")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Launch the interactive traffic network viewer with a dynamic time slider"
+    )
     args = parser.parse_args()
 
     if args.seed is not None:
@@ -93,6 +98,18 @@ def main():
     print(f" Network Origin: {problem.origin} | Destination: {problem.destination}")
     print(f" Time Domain: {problem.t_min}m to {problem.t_max}m (Step: {problem.t_step}m)")
     print("=" * 70)
+
+    if args.interactive:
+        from visualization.interactive_traffic import launch_interactive_traffic_viewer
+        print("\n>> Launching interactive traffic viewer. Use the slider to explore dynamic congestion.")
+        launch_interactive_traffic_viewer(
+            network=problem.network,
+            congestion_model=problem.congestion_model,
+            t_min=problem.t_min,
+            t_max=problem.t_max,
+            t_step=problem.t_step
+        )
+        return
 
     for key in targets:
         display_name, solver_cls, cfg_key = SOLVER_REGISTRY[key]

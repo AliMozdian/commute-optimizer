@@ -102,7 +102,8 @@ commute-optimizer/
 │
 ├── visualization/                # Plotting utilities
 │   ├── plot_routes.py            # Network renderer with traffic heatmaps
-│   └── plot_metrics.py           # Objective convergence curve plotter
+│   ├── plot_metrics.py           # Objective convergence curve plotter
+│   └── interactive_traffic.py    # Dynamic slider tool to inspect network congestion
 │
 ├── data/                         # Maps and scenario files
 │   ├── maps/                     # Network topology definitions
@@ -122,18 +123,29 @@ commute-optimizer/
 * Recommended: Virtual environment (`venv` or `conda`)
 
 ### Fork This Repository
-First you need to <ins>**fork this repo**</ins> by your personal GitHub account, so you can develop your code over this already built standard environment.
+First, <ins>**fork this repository**</ins> to your personal GitHub account so that you can develop your solution within this standard framework.
 
 ### Setup
 ```bash
 git clone <your_forked_repository_url>
 cd commute-optimizer
 python -m venv .venv
-source .venv/bin/activate       # On Windows: venv\Scripts\activate
+source .venv/bin/activate       # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Running Solvers
+### Exploring Dynamic Traffic with the Interactive Viewer
+Before writing search code, gain an intuitive understanding of the time-dependent traffic patterns on the map using the interactive slider tool:
+
+```bash
+# Launch interactive network viewer with a dynamic time slider
+python main.py --interactive
+```
+
+* Drag the slider to observe how edge travel times and bottleneck colors shift between 07:00 and 10:00 AM.
+* Identify which expressways become congested and during which exact time windows.
+
+### Running Solvers & Benchmarks
 Execute individual algorithms or benchmark all four solvers side-by-side using `main.py`:
 
 ```bash
@@ -151,6 +163,7 @@ python main.py --algo all --map data/maps/toy_graph.json --scenario data/scenari
 ```
 
 #### CLI Arguments
+* `--interactive`: Launches the interactive GUI with the time slider to inspect network traffic.
 * `--algo`: Solver to run (`hc`, `sa`, `beam`, `ga`, or `all`).
 * `--map`: Path to the road network JSON file.
 * `--scenario`: Path to the congestion scenario JSON file.
@@ -209,7 +222,6 @@ Solvers inherit from `LocalSearchSolver` and receive these dictionary parameters
 
 ## 7. Implementation Tasks
 
-
 You must complete the implementation of files located in `algorithms/`:
 
 1. **`algorithms/operators.py`**:
@@ -228,11 +240,68 @@ You must complete the implementation of files located in `algorithms/`:
 
 ---
 
-## 8. Submit Your Homework
+## 8. Final Report & Submission Guidelines
 
-Remember that you must <ins>**fork this repo**</ins> to your personal GitHub account, and to submit your homework, send the link to your forked repo on the given platform (Quera).
+### 8.1 Repository Submission
+1. Fork this repository to your personal GitHub account.
+2. Ensure you commit your progress incrementally. Your commit log should reflect systematic development across all four algorithms.
+3. Submit the link to your forked GitHub repository on the course platform (Quera).
+4. **Deadline Policy:** Push all commits prior to the deadline. Post-deadline commits are subject to severe penalties or outright disqualification.
 
-Make sure to **commit** your work **regularly** to show progress towards solving the problem using different algorithms, and compare the results in your final report document (Markdown or PDF).
+---
 
-**Attention**: Send the link to your repo before the deadline and **DO NOT COMMIT** ANY CHANGES <ins>AFTER THE DEADLINE</ins>.
-Late changes will lead to **HUGE PENALTIES**, if not canceling your whole commit after the deadline.
+### 8.2 Comprehensive Report Deliverable (`REPORT.md` or `report.pdf`)
+
+Alongside your codebase, you must include a detailed technical report in the root directory of your repository. 
+
+Your report must cover the following core sections:
+* **Architecture & Operator Design:** Explain how your neighborhood generator balances time tweaks versus route detours. How do you guarantee that mutated and crossover paths remain continuous, valid, and free of topological cycles?
+* **Empirical Comparison Table:** A comprehensive summary table comparing all four algorithms across:
+  * Best objective value achieved ($f(x^*)$ in minutes).
+  * Best departure time ($t^*$) and optimal path string.
+  * Average execution runtime (in seconds).
+  * Iteration count until convergence.
+* **Visual Convergence Analysis:** Include the generated `convergence_comparison.png` plot. Analyze the distinct search profiles of each solver (e.g., greedy descents, stochastic hill escapes, beam diversity, GA generation fitness progression).
+* **Hyperparameter Sensitivity:** Detail your experiments with tuning `config.json`. What parameters caused premature convergence or thrashing, and what configurations yielded optimal stability?
+
+---
+
+### 8.3 Analytical Questions (Mandatory to Address in Your Report)
+
+You must include explicit answers to at least 5 of the following questions in your report (arbitrary; we'll score the best 5 of your responses):
+
+#### Question 1: Continuous Optimization & Gradient Descent
+In continuous optimization problems (such as the airport siting problem from the course slides), Gradient Descent updates states using:
+$$x \leftarrow x - \alpha \nabla f(x)$$
+* Why is classical Gradient Descent fundamentally inapplicable to optimizing the path $P$ in this road network problem?
+* Could Gradient Descent be used to optimize the departure time $t_{\text{start}}$ in isolation while holding path $P$ fixed? What mathematical conditions would the dynamic congestion multiplier $C_e(t)$ need to satisfy for this to be valid?
+
+#### Question 2: Local Search vs. Classical Incremental Search
+Classical graph search algorithms (e.g., A*, Dijkstra) construct routes edge-by-edge.
+* In our problem, why is the commute planned as a *complete configuration* $x = \langle P, t_{\text{start}} \rangle$ rather than using incremental state-space search?
+* Under what network conditions or constraints would incremental time-dependent Dijkstra struggle compared to local search heuristics?
+
+#### Question 3: Local Beam Search vs. Genetic Algorithm Recombination
+The course slides describe Local Beam Search as maintaining $K$ parallel searches and ask: *"What other well-known algorithm does this remind you of? Evolution!"*
+* What fundamental advantage does the **crossover** operator in Genetic Algorithms offer over the pooled greedy selection mechanism in Local Beam Search?
+* Did your Local Beam Search suffer from the classic issue where all $K$ beams quickly converge onto the same single local peak? How did you or could you prevent this population collapse?
+
+#### Question 4: Plateaus and Sideways Moves in Hill Climbing
+On the 8-Queens problem, allowing up to 100 sideways moves increased the success probability from $14\%$ to $94\%$.
+* In our commute network, what concrete scenario creates a "shoulder" or "flat local minimum" where neighboring configurations yield identical or nearly identical travel times?
+* How did your choice of `max_sideways` impact the runtime versus solution quality in `HillClimbingSolver`?
+
+#### Question 5: Cooling Schedule Dynamics in Simulated Annealing
+Simulated Annealing relies on the Metropolis acceptance probability $P = \exp(-\Delta E / T)$.
+* What are the risks of setting the initial temperature $T_0$ too high versus too low?
+* What happens if the cooling rate $\alpha$ is too small (e.g., $\alpha = 0.5$, rapid quenching) versus very close to $1.0$ (e.g., $\alpha = 0.999$)? Provide concrete observations from your experiments.
+
+#### Question 6: Crossover Disjointness & Epistasis
+Consider two parent solutions $x_1 = (P_1, t_1)$ and $x_2 = (P_2, t_2)$ that traverse completely disjoint corridors of the city—sharing no intermediate nodes between `Home` and `Uni`.
+* How does your `crossover()` function handle this edge case without generating invalid paths or broken topological edges?
+* Why can crossing over two individually high-quality parent routes sometimes produce a catastrophically poor offspring (high epistasis)?
+
+#### Question 7: Combinatorial Space Estimation
+Suppose a road network has $|V|$ nodes, an average node out-degree of $b$, an average origin-to-destination path length of $L$ hops, and a departure time window containing $N_t$ discrete intervals.
+* Formulate a theoretical upper bound for the total number of complete states $|\mathcal{X}|$.
+* Based on your estimate, explain why exhaustive brute-force search is intractable on large road networks, justifying the use of local search heuristics.
