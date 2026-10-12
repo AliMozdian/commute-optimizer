@@ -3,7 +3,7 @@ core/problem.py
 Evaluates candidate commute states and simulates dynamic travel times.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from core.state import State
 from core.graph import RoadNetwork
 from core.congestion import CongestionModel
@@ -88,6 +88,10 @@ class CommuteProblem:
 
         return current_time - state.departure_time
 
+    def get_path_cost_vector(self, state: State) -> Tuple[float, int]:
+        """Returns (commute_time, hops_count). Use index [0] for objective cost."""
+        ...
+    
     def generate_initial_state(self) -> State:
         """
         Constructs a valid baseline state using the shortest free-flow path
