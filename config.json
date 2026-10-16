@@ -2,29 +2,29 @@
   "problem": {
     "origin": "Home",
     "destination": "Uni",
-    "t_min": 420.0,
-    "t_max": 600.0,
+    "t_min": 465.0,
+    "t_max": 525.0,
     "t_step": 5.0
   },
   "hill_climbing": {
     "max_sideways": 100,
-    "max_restarts": 5
+    "max_restarts": 10
   },
   "simulated_annealing": {
-    "initial_temp": 100.0,
-    "cooling_rate": 0.995,
+    "initial_temp": 120.0,
+    "cooling_rate": 0.992,
     "min_temp": 0.001,
-    "max_iterations": 2500
+    "max_iterations": 3000
   },
   "beam_search": {
-    "beam_width": 5,
+    "beam_width": 8,
     "max_iterations": 150
   },
   "genetic_algorithm": {
-    "population_size": 40,
+    "population_size": 50,
     "generations": 120,
-    "crossover_rate": 0.8,
+    "crossover_rate": 0.85,
     "mutation_rate": 0.25,
-    "elitism": 2
+    "elitism": 3
   }
 }
