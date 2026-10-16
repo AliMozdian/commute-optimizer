@@ -10,12 +10,11 @@ In classical pathfinding (e.g., Dijkstra, A*), an agent incrementally explores e
 
 This project formulates the commute task as a **Complete-State Configuration Optimization Problem**. Rather than deciding turns step-by-step, the search agent optimizes an entire commute configuration simultaneously:
 
-$$x = \langle P, \; t_{\text{start}} \rangle$$
+$$x = \langle P, t_{\text{start}} \rangle$$
 
 where:
 * $P = \langle v_0, v_1, \dots, v_m \rangle$ is a complete, loop-free topological path from Origin ($v_0$) to Destination ($v_m$) in the road network.
-* $t_{\text{start}}$ is the departure time chosen from a discrete set of options within a commute window:
-  $$\mathcal{T} = \{t_{\min} + k \cdot \Delta t \mid k \in \mathbb{N}_0, \; t_{\min} + k \cdot \Delta t \le t_{\max}\}$$
+* $t_{\text{start}}$ is the departure time chosen from a discrete set of options within a commute window: $\mathcal{T} = \{t_{\min} + k \cdot \Delta t \mid k \in \mathbb{N}_0, \, t_{\min} + k \cdot \Delta t \le t_{\max}\}$.
 
 The objective is to discover the configuration $x^*$ that minimizes the total commute duration $f(x)$ under dynamic rush-hour traffic waves.
 
@@ -40,11 +39,10 @@ $$C_e(t) = \sum_{k} A_{e, k} \cdot \exp\left(-\frac{(t - \mu_{e, k})^2}{2\sigma_
 where $\mu$ denotes peak bottleneck time, $\sigma$ controls duration, and $A$ indicates congestion severity.
 
 ### 2.3 The Objective Function $f(x)$
-Given a candidate configuration $x = \big(\langle v_0, v_1, \dots, v_m \rangle, \; t_{\text{start}}\big)$, the simulation advances the clock along the path using a First-In-First-Out (FIFO) dynamic network simulation:
+Given a candidate configuration $x = \big(\langle v_0, v_1, \dots, v_m \rangle, \, t_{\text{start}}\big)$, the simulation advances the clock along the path using a First-In-First-Out (FIFO) dynamic network simulation:
 
 1. Initialize clock: $t_0 = t_{\text{start}}$
-2. For each successive edge $e_i = (v_i, v_{i+1})$ along path $P$:
-   $$\Delta t_i = \tau(e_i, t_i)$$
+2. For each successive edge $e_i = (v_i, v_{i+1})$ along path $P$, compute dynamic travel time $\Delta t_i = \tau(e_i, t_i)$ and advance the clock:
    $$t_{i+1} = t_i + \Delta t_i$$
 3. Total travel duration:
    $$f(x) = t_m - t_{\text{start}} = \sum_{i=0}^{m-1} \Delta t_i$$
@@ -103,7 +101,7 @@ commute-optimizer/
 ├── visualization/                # Plotting utilities
 │   ├── plot_routes.py            # Network renderer with traffic heatmaps
 │   ├── plot_metrics.py           # Objective convergence curve plotter
-│   └── interactive_traffic.py    # Dynamic slider tool to inspect network congestion
+│   └── interactive_traffic.py    # Dynamic slider & edge inspection tool
 │
 ├── data/                         # Maps and scenario files
 │   ├── maps/                     # Network topology definitions
@@ -116,7 +114,33 @@ commute-optimizer/
 
 ---
 
-## 5. Getting Started
+## 5. Benchmark Datasets: Maps & Scenarios
+
+The repository includes curated maps and traffic profiles to validate algorithms across progressively challenging scenarios.
+
+| Scenario File | Target Compatible Map | Description & Primary Challenge |
+| :--- | :--- | :--- |
+| `data/scenarios/rush_hour.json` | `data/maps/toy_graph.json` | **Single Peak Bottleneck:** A heavy rush-hour wave on the direct Highway corridor between 07:45 and 08:30 AM. Tests whether an algorithm discovers the longer Boulevard bypass route to avoid severe delay. |
+| `data/scenarios/dual_peak_rush_hour.json` | `data/maps/metropolis_graph.json` | **Multi-Modal Overlapping Waves:** Multiple overlapping Gaussian waves on the North Expressway (school rush + office rush) with secondary spillovers. Creates multiple local minima, testing the ability of SA and GA to escape early suboptimal departure times. |
+| `data/scenarios/cascading_gridlock.json` | `data/maps/metropolis_graph.json` | **Deceptive Downstream Trap:** The early links of the North Expressway appear free of traffic at 07:30 AM, but downstream segments enter heavy gridlock right as the vehicle arrives under FIFO simulation. Tests whether algorithms detect downstream delays and reroute through cross-connectors or the Southern Ring. |
+
+### 5.1 Road Networks (`data/maps/`)
+* **`toy_graph.json` (7 Nodes, 12 Edges):**
+  A compact network featuring a fast direct highway, a longer low-traffic boulevard, and cross-connecting avenues. Ideal for rapid sanity-checking, debugging operator validity, and visualizing basic route selection.
+* **`metropolis_graph.json` (16 Nodes, 26 Edges):**
+  A metropolitan layout containing three major east-west corridors (North Expressway, Central Arterial Boulevard, and South Ring Road) joined by cross-town bridges and tunnels (`B1`, `B2`, `T1`, `T2`). Designed for comprehensive benchmarking where structural detours and waypoint crossovers play a decisive role.
+
+### 5.2 Scenario Details & Pedagogical Intent
+* **`rush_hour.json`:**
+  Designed exclusively for `toy_graph.json`. Demonstrates the trade-off between route length and dynamic delay. An algorithm that leaves at 08:00 AM on the Highway experiences $\approx 65$ minutes of delay, whereas taking the Boulevard detour requires only $\approx 46$ minutes.
+* **`dual_peak_rush_hour.json`:**
+  Designed for `metropolis_graph.json`. Features two overlapping Gaussian peaks on edges `Home -> N1` and `N1 -> N2` alongside arterial congestion. Solvers with poor exploration will settle on an early local minimum (~07:15 AM), failing to discover superior travel windows or bridge switches.
+* **`cascading_gridlock.json`:**
+  Designed for `metropolis_graph.json`. Specifically constructed to stress-test local search heuristics against deceptive paths. Because congestion dynamically shifts as time advances, greedy choices on initial edges lead directly into severe bottlenecks downstream.
+
+---
+
+## 6. Getting Started
 
 ### Prerequisites
 * Python 3.9+
@@ -135,15 +159,19 @@ pip install -r requirements.txt
 ```
 
 ### Exploring Dynamic Traffic with the Interactive Viewer
-Before writing search code, gain an intuitive understanding of the time-dependent traffic patterns on the map using the interactive slider tool:
+Before writing search code, explore dynamic traffic patterns and bottleneck formations on the road network using the interactive viewer:
 
 ```bash
-# Launch interactive network viewer with a dynamic time slider
+# Launch interactive network viewer on the default toy map
 python main.py --interactive
+
+# Launch on the metropolis map with dual-peak traffic
+python main.py --interactive --map data/maps/metropolis_graph.json --scenario data/scenarios/dual_peak_rush_hour.json
 ```
 
-* Drag the slider to observe how edge travel times and bottleneck colors shift between 07:00 and 10:00 AM.
-* Identify which expressways become congested and during which exact time windows.
+* **Dynamic Slider:** Drag the slider to observe how edge travel times and bottleneck colors shift across the commute window.
+* **Inspect Edge Profiles:** Click directly on any road segment to open its 2D congestion-time curve.
+* **Clear Selection:** Click on empty space in the map to dismiss the active edge highlight.
 
 ### Running Solvers & Benchmarks
 Execute individual algorithms or benchmark all four solvers side-by-side using `main.py`:
@@ -160,6 +188,9 @@ python main.py --algo ga --plot-route
 
 # Run benchmarks on a custom map and save generated plots to disk
 python main.py --algo all --map data/maps/toy_graph.json --scenario data/scenarios/rush_hour.json --save-figs
+
+# Test on the challenging cascading gridlock scenario
+python main.py --algo all --map data/maps/metropolis_graph.json --scenario data/scenarios/cascading_gridlock.json --plot-metrics
 ```
 
 #### CLI Arguments
@@ -175,7 +206,7 @@ python main.py --algo all --map data/maps/toy_graph.json --scenario data/scenari
 
 ---
 
-## 6. Hyperparameter Configuration (`config.json`)
+## 7. Hyperparameter Configuration (`config.json`)
 
 To decouple search logic from hardcoded constants, all tunable parameters are stored in `config.json`:
 
@@ -220,7 +251,7 @@ Solvers inherit from `LocalSearchSolver` and receive these dictionary parameters
 
 ---
 
-## 7. Implementation Tasks
+## 8. Implementation Tasks
 
 You must complete the implementation of files located in `algorithms/`:
 
@@ -240,9 +271,9 @@ You must complete the implementation of files located in `algorithms/`:
 
 ---
 
-## 8. Final Report & Submission Guidelines
+## 9. Final Report & Submission Guidelines
 
-### 8.1 Repository Submission
+### 9.1 Repository Submission
 1. Fork this repository to your personal GitHub account.
 2. Ensure you commit your progress incrementally. Your commit log should reflect systematic development across all four algorithms.
 3. Submit the link to your forked GitHub repository on the course platform (Quera).
@@ -250,9 +281,9 @@ You must complete the implementation of files located in `algorithms/`:
 
 ---
 
-### 8.2 Comprehensive Report Deliverable (`REPORT.md` or `report.pdf`)
+### 9.2 Comprehensive Report Deliverable (`REPORT.md` or `report.pdf`)
 
-Alongside your codebase, you must include a detailed technical report in the root directory of your repository. 
+Alongside your codebase, you must include a detailed technical report in the root directory of your repository (written in either English or Persian).
 
 Your report must cover the following core sections:
 * **Architecture & Operator Design:** Explain how your neighborhood generator balances time tweaks versus route detours. How do you guarantee that mutated and crossover paths remain continuous, valid, and free of topological cycles?
@@ -266,13 +297,15 @@ Your report must cover the following core sections:
 
 ---
 
-### 8.3 Analytical Questions (Mandatory to Address in Your Report)
+### 9.3 Analytical Questions (Mandatory to Address in Your Report)
 
 You must include explicit answers to at least 5 of the following questions in your report (arbitrary; we'll score the best 5 of your responses):
 
 #### Question 1: Continuous Optimization & Gradient Descent
 In continuous optimization problems (such as the airport siting problem from the course slides), Gradient Descent updates states using:
+
 $$x \leftarrow x - \alpha \nabla f(x)$$
+
 * Why is classical Gradient Descent fundamentally inapplicable to optimizing the path $P$ in this road network problem?
 * Could Gradient Descent be used to optimize the departure time $t_{\text{start}}$ in isolation while holding path $P$ fixed? What mathematical conditions would the dynamic congestion multiplier $C_e(t)$ need to satisfy for this to be valid?
 
@@ -292,7 +325,10 @@ On the 8-Queens problem, allowing up to 100 sideways moves increased the success
 * How did your choice of `max_sideways` impact the runtime versus solution quality in `HillClimbingSolver`?
 
 #### Question 5: Cooling Schedule Dynamics in Simulated Annealing
-Simulated Annealing relies on the Metropolis acceptance probability $P = \exp(-\Delta E / T)$.
+Simulated Annealing relies on the Metropolis acceptance probability:
+
+$$P = \exp\left(-\frac{\Delta E}{T}\right)$$
+
 * What are the risks of setting the initial temperature $T_0$ too high versus too low?
 * What happens if the cooling rate $\alpha$ is too small (e.g., $\alpha = 0.5$, rapid quenching) versus very close to $1.0$ (e.g., $\alpha = 0.999$)? Provide concrete observations from your experiments.
 
@@ -305,3 +341,4 @@ Consider two parent solutions $x_1 = (P_1, t_1)$ and $x_2 = (P_2, t_2)$ that tra
 Suppose a road network has $|V|$ nodes, an average node out-degree of $b$, an average origin-to-destination path length of $L$ hops, and a departure time window containing $N_t$ discrete intervals.
 * Formulate a theoretical upper bound for the total number of complete states $|\mathcal{X}|$.
 * Based on your estimate, explain why exhaustive brute-force search is intractable on large road networks, justifying the use of local search heuristics.
+* 
