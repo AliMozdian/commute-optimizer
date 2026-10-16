@@ -44,7 +44,7 @@ Given a candidate configuration $x = \big(\langle v_0, v_1, \dots, v_m \rangle, 
 1. Initialize clock: $t_0 = t_{\text{start}}$
 2. For each successive edge $e_i = (v_i, v_{i+1})$ along path $P$, compute dynamic travel time $\Delta t_i = \tau(e_i, t_i)$ and advance the clock:
    $$t_{i+1} = t_i + \Delta t_i$$
-3. Total travel duration:
+3. Total travel duration to minimize:
    $$f(x) = t_m - t_{\text{start}} = \sum_{i=0}^{m-1} \Delta t_i$$
 
 If a state contains cycles, lacks path continuity, or sets a departure time outside $[t_{\min}, t_{\max}]$, the evaluation engine assigns an infinite penalty: $f(x) = \infty$.
@@ -116,27 +116,46 @@ commute-optimizer/
 
 ## 5. Benchmark Datasets: Maps & Scenarios
 
-The repository includes curated maps and traffic profiles to validate algorithms across progressively challenging scenarios.
+The test suite includes three distinct network maps and five dynamic traffic scenarios designed to evaluate specific theoretical properties of local search heuristics.
 
-| Scenario File | Target Compatible Map | Description & Primary Challenge |
-| :--- | :--- | :--- |
-| `data/scenarios/rush_hour.json` | `data/maps/toy_graph.json` | **Single Peak Bottleneck:** A heavy rush-hour wave on the direct Highway corridor between 07:45 and 08:30 AM. Tests whether an algorithm discovers the longer Boulevard bypass route to avoid severe delay. |
-| `data/scenarios/dual_peak_rush_hour.json` | `data/maps/metropolis_graph.json` | **Multi-Modal Overlapping Waves:** Multiple overlapping Gaussian waves on the North Expressway (school rush + office rush) with secondary spillovers. Creates multiple local minima, testing the ability of SA and GA to escape early suboptimal departure times. |
-| `data/scenarios/cascading_gridlock.json` | `data/maps/metropolis_graph.json` | **Deceptive Downstream Trap:** The early links of the North Expressway appear free of traffic at 07:30 AM, but downstream segments enter heavy gridlock right as the vehicle arrives under FIFO simulation. Tests whether algorithms detect downstream delays and reroute through cross-connectors or the Southern Ring. |
+### 5.1 Scenario & Map Compatibility Matrix
 
-### 5.1 Road Networks (`data/maps/`)
-* **`toy_graph.json` (7 Nodes, 12 Edges):**
-  A compact network featuring a fast direct highway, a longer low-traffic boulevard, and cross-connecting avenues. Ideal for rapid sanity-checking, debugging operator validity, and visualizing basic route selection.
-* **`metropolis_graph.json` (16 Nodes, 26 Edges):**
-  A metropolitan layout containing three major east-west corridors (North Expressway, Central Arterial Boulevard, and South Ring Road) joined by cross-town bridges and tunnels (`B1`, `B2`, `T1`, `T2`). Designed for comprehensive benchmarking where structural detours and waypoint crossovers play a decisive role.
+| Scenario File | Compatible Map | Primary Theoretical Focus | Pedagogical Objective |
+| :--- | :--- | :--- | :--- |
+| `rush_hour.json` | `toy_graph.json` | **Energy Barrier & Basin Escape** | Tests if Simulated Annealing and Restarts escape the direct highway trap and discover the longer boulevard detour during peak hours. |
+| `dual_peak_rush_hour.json` | `metropolis_graph.json` | **Multimodal Surface Exploration** | Multiple overlapping traffic waves create competing local minima, testing stochastic exploration over greedy descents. |
+| `cascading_gridlock.json` | `metropolis_graph.json` | **FIFO Downstream Deception** | Penalizes myopic choices on early edges that lead into downstream gridlock, forcing the discovery of mid-route bypass bridges. |
+| `crossover_showcase.json` | `metropolis_graph.json` | **Building-Block Recombination** | Evaluates how GA crossover splices partial solutions from two sub-optimal parents to outperform greedy beam search. |
+| `flat_plateau.json` | `downtown_grid.json` | **Plateaus & Sideways Moves** | Tests if Hill Climbing leverages `max_sideways` to traverse cost-neutral Manhattan paths without premature termination. |
 
-### 5.2 Scenario Details & Pedagogical Intent
-* **`rush_hour.json`:**
-  Designed exclusively for `toy_graph.json`. Demonstrates the trade-off between route length and dynamic delay. An algorithm that leaves at 08:00 AM on the Highway experiences $\approx 65$ minutes of delay, whereas taking the Boulevard detour requires only $\approx 46$ minutes.
-* **`dual_peak_rush_hour.json`:**
-  Designed for `metropolis_graph.json`. Features two overlapping Gaussian peaks on edges `Home -> N1` and `N1 -> N2` alongside arterial congestion. Solvers with poor exploration will settle on an early local minimum (~07:15 AM), failing to discover superior travel windows or bridge switches.
-* **`cascading_gridlock.json`:**
-  Designed for `metropolis_graph.json`. Specifically constructed to stress-test local search heuristics against deceptive paths. Because congestion dynamically shifts as time advances, greedy choices on initial edges lead directly into severe bottlenecks downstream.
+---
+
+### 5.2 Network Descriptions (`data/maps/`)
+
+1. **`toy_graph.json` (7 Nodes, 12 Edges):**
+   * A clean two-corridor setup comparing a short 30-minute Highway against a longer 46-minute Boulevard.
+   * Ideal for verifying path validity, debugging operator stubs, and testing basic local basin escapes.
+2. **`metropolis_graph.json` (16 Nodes, 26 Edges):**
+   * A metropolitan network featuring three parallel corridors (North Expressway, Central Arterial, and South Ring) linked by cross-connecting bridges (`B1`, `B2`) and tunnels (`T1`, `T2`).
+   * Provides numerous topological sub-paths, detour alternatives, and common intersection junctions for complex multi-agent benchmarking.
+3. **`downtown_grid.json` (12 Nodes, 17 Edges):**
+   * A dense $3 \times 4$ urban grid where multiple distinct paths from `Home` to `Uni` share identical baseline hop counts and free-flow travel durations.
+   * Specifically designed to generate broad cost-neutral plateaus (shoulders) in the search landscape.
+
+---
+
+### 5.3 Traffic Scenario Details (`data/scenarios/`)
+
+* **`rush_hour.json` (`toy_graph.json`):**
+  Applies severe congestion ($A = 4.0$) to Highway links between 07:45 and 08:30 AM ($t \approx 480 \text{--} 510$). While the Highway is optimal at off-peak hours (30 min), during rush hour it escalates to over 85 minutes, making the 46-minute Boulevard the superior choice.
+* **`dual_peak_rush_hour.json` (`metropolis_graph.json`):**
+  Simulates an early morning school run ($\mu = 450\text{m}$) followed by an office rush ($\mu = 495\text{m}$) on the North Expressway, accompanied by secondary arterial spillovers. Solvers must navigate overlapping waves and dynamic window shifts.
+* **`cascading_gridlock.json` (`metropolis_graph.json`):**
+  A deceptive scenario where `Home -> N1` appears virtually unconstrained at 07:35 AM ($C_e \approx 0.4$), but severe downstream bottlenecks on `N2 -> N3` and `N3 -> Uni` peak right when the commuter reaches them ($t \approx 495 \text{--} 505$). Solvers must identify cross-bridges (`B1 -> C2 -> T2`) to detour around the downstream shockwave.
+* **`crossover_showcase.json` (`metropolis_graph.json`):**
+  The North corridor is heavily congested on its exit half (`N2 -> N3 -> Uni`), while the South corridor is blocked on its entrance half (`Home -> S1 -> T1`). Central junction `C2` remains entirely clear. An optimal path cannot be found by mutating either corridor alone; it requires crossing over a North-starting parent with a South-finishing parent at pivot `C2`.
+* **`flat_plateau.json` (`downtown_grid.json`):**
+  Injects broad, uniform congestion across interior grid intersections, creating large regions where neighboring Manhattan detours yield identical objective costs ($\Delta E = 0$). Tests whether Hill Climbing with sideways moves can navigate across the shoulder to discover the clear perimeter artery.
 
 ---
 
@@ -167,6 +186,9 @@ python main.py --interactive
 
 # Launch on the metropolis map with dual-peak traffic
 python main.py --interactive --map data/maps/metropolis_graph.json --scenario data/scenarios/dual_peak_rush_hour.json
+
+# Inspect the downtown grid plateau
+python main.py --interactive --map data/maps/downtown_grid.json --scenario data/scenarios/flat_plateau.json
 ```
 
 * **Dynamic Slider:** Drag the slider to observe how edge travel times and bottleneck colors shift across the commute window.
@@ -185,6 +207,12 @@ python main.py --algo all --seed 42 --plot-metrics
 
 # Visualize the optimal route chosen by the Genetic Algorithm on the network map
 python main.py --algo ga --plot-route
+
+# Run the Genetic Algorithm vs. Beam Search benchmark on the Crossover Showcase
+python main.py --algo all --map data/maps/metropolis_graph.json --scenario data/scenarios/crossover_showcase.json --plot-metrics
+
+# Test Hill Climbing sideways moves on the Downtown Flat Plateau
+python main.py --algo hc --map data/maps/downtown_grid.json --scenario data/scenarios/flat_plateau.json --plot-metrics
 
 # Run benchmarks on a custom map and save generated plots to disk
 python main.py --algo all --map data/maps/toy_graph.json --scenario data/scenarios/rush_hour.json --save-figs
@@ -341,4 +369,3 @@ Consider two parent solutions $x_1 = (P_1, t_1)$ and $x_2 = (P_2, t_2)$ that tra
 Suppose a road network has $|V|$ nodes, an average node out-degree of $b$, an average origin-to-destination path length of $L$ hops, and a departure time window containing $N_t$ discrete intervals.
 * Formulate a theoretical upper bound for the total number of complete states $|\mathcal{X}|$.
 * Based on your estimate, explain why exhaustive brute-force search is intractable on large road networks, justifying the use of local search heuristics.
-* 
