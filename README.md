@@ -14,7 +14,11 @@ $$x = \langle P, t_{\text{start}} \rangle$$
 
 where:
 * $P = \langle v_0, v_1, \dots, v_m \rangle$ is a complete, loop-free topological path from Origin ($v_0$) to Destination ($v_m$) in the road network.
-* $t_{\text{start}}$ is the departure time chosen from a discrete set of options within a commute window: $\mathcal{T} = \{t_{\min} + k \cdot \Delta t \mid k \in \mathbb{N}_0, \, t_{\min} + k \cdot \Delta t \le t_{\max}\}$.
+* $t_{\text{start}} \in \mathcal{T}$ is the scheduled departure time from the origin.
+
+The departure time is selected from a discrete domain $\mathcal{T}$ bounded by the commute window $[t_{\min}, t_{\max}]$:
+
+$$\mathcal{T} = \{t_{\min} + k \cdot \Delta t \mid k \in \mathbb{N}_0, \, t_{\min} + k \cdot \Delta t \le t_{\max}\}$$
 
 The objective is to discover the configuration $x^*$ that minimizes the total commute duration $f(x)$ under dynamic rush-hour traffic waves.
 
